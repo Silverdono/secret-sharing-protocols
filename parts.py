@@ -27,11 +27,11 @@ class Part:
     computedLDEI = LDEI
 
     # Initiate participant saving global variables and generating keys
-    def __init__(self, ordinal: int, t: int, l: int, n: int, q: int, h: int):
+    def __init__(self, ordinal: int, t: int, l: int, n: int, q: int, p: int, h: int):
         self.ordinal = ordinal
-        self.publicKey, self.privateKey = utils.generateKeys(q, h)
+        self.publicKey, self.privateKey = utils.generateKeys(h, q, p)
         self.polynom = utils.generatePolynom(t, l, q)
-        self.secrets, self.encryptedSecrets, self.shares, self.encryptedShares = utils.computePolynom(self.polynom,self.publicKey, l, n, q, h)
+        self.secrets, self.encryptedSecrets, self.shares, self.encryptedShares = utils.computePolynom(self.polynom,self.publicKey, l, n, q, p, h)
         self.computedLDEI = utils.generateLDEI(self.polynom, self.encryptedShares, self.publicKey, n, q, t, l)
 
     # Return the ordinal number of the participant and his public key

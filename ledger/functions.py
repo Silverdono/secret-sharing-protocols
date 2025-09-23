@@ -65,14 +65,18 @@ def generateVandermondeMatrix(l, t, w, q):
     return vandermonde
     
 
-def generateResultMatrix(l, t, w, q, hS):
+def generateResultMatrix(l, t, w, q, h, hS):
 
     vandermonde = generateVandermondeMatrix(l, t, w, q)
 
     resultMatrix = []
 
-    for i in range(len(vandermonde)):
-        temp = vandermonde[i] * hS
-        resultMatrix.append(temp)
+    for i in range(l):
+        row = []
+        for j in range(l + t):
+            temp = vandermonde[i][j] * hS[j]
+            result = pow(h,temp)
+            row.append(result)
+        resultMatrix.append(row)
 
     return resultMatrix

@@ -7,19 +7,20 @@ import utils
 from . import functions
 
 
-def create_app(n, q):
+def create_app(n, p):
 
     app = Flask("Public ledger")
 
     import secrets as sessionSecret
     app.secret_key = sessionSecret.token_hex()
 
-    h = utils.findGenerator(q) # Generator
+    h = utils.findGenerator(p) # Generator
+    q = utils.findMultiplicativeOrder(h,p) # Multiplicative order of h in p
 
     t = int(n/3) # Tolerance -- A bit arbitrary this value
     l = int(n - 2 * t) # l
 
-    w = randint(0, q) # Base used for vandermonde matrix, TODO: review the generation of this
+    w = randint(0, q) # Base used for vandermonde matrix smaller than multiplicative order of q
 
     publicKeys = [] # Participants' public keys
     encryptedShares = [] # Participants' encrypted shares
@@ -32,6 +33,7 @@ def create_app(n, q):
     jsonBody = {
         'n' : n,
         'q' : q,
+        'p' : p,
         'h' : h,
         't' : t,
         'l' : l
@@ -107,7 +109,7 @@ def create_app(n, q):
             else:
                 hS = functions.calculateSecrets(n, t, l, h, q, plainShares)
                 session['hS'] = hS
-                resultMatrix = functions.generateResultMatrix(l, t, w, q, hS)
+                resultMatrix = functions.generateResultMatrix(l, t, w, q, h, hS)
                 session['resultMatrix'] = resultMatrix
                 return "Result matrix generated"
         

@@ -1,17 +1,14 @@
 from random import randint
-from sympy import Poly
-from sympy.abc import X
 from ldei import LDEI
 from dleq import DLEQ
 
 # Generate random key winthin order cyclic group
-def generateKeys(q: int, h: int):
-    privateKey = randint(1, q-1) #Range starts at 1 because 0 is not a valid public key
-    publicKey = pow(h, privateKey, q)
+def generateKeys(h: int, q: int, p : int):
+    privateKey = randint(1, int(q)-1) #Range starts at 1 because 0 is not a valid public key
+    publicKey = pow(h, privateKey, p)
     return publicKey, privateKey
 
 # Finding a valid generator for a given cyclic group, only works when q is prime, but in this program always will be
-# TODO: Comprobar la utilidad de esto, si q es primo siempre va a devolver 2 porque todos los elementos son generadores
 # Used algorithm found in https://github.com/evapln/albatross/blob/master/CyclicGroup/src/func.cpp
 # Generator should comply with gen**2 mod q != 1 and gen**q mod q != 1
 def findGenerator(q : int):
@@ -25,16 +22,23 @@ def findGenerator(q : int):
         return i # Return i if previous conditions fulfilled
     return -1 # Return -1 if no generator found
 
+# Find multiplicative order of generator h inside Cyclic Group of p size
+def findMultiplicativeOrder(h: int, p: int):
+    i = 1
+    while pow(h,i,p) != 1:
+        i += 1
+    return i    
+
 # Generate random polynom inside cyclic group of order q
 def generatePolynom(t : int, l : int, q : int): 
     coefs = [randint(0, q) for _ in range(int(t + l))]
-    poly = Poly(coefs, X)
-    poly.set_modulus(q)
-    return poly
+    # poly = Poly(coefs, X)
+    # poly.set_modulus(q)
+    return coefs
 
 # Compute polynom for all n participants inside cyclic group
 # Return plain computed shares and cyphered ones with public key
-def computePolynom(poly, pk, l:int, n, q, h):
+def computePolynom(coefs, pk, l:int, n, q, p, h):
 
     #Implementacion de πPPVSS del documento (fichas.pdf, pag. 15) 
 
@@ -42,16 +46,23 @@ def computePolynom(poly, pk, l:int, n, q, h):
     encryptedSecrets = [-1] * int(l)
 
     for i in range(0, int(l)):
-        secrets[i] = poly.eval(X, -i) % q
-        encryptedSecrets[i] = pow(h, secrets[i]) % q
+        secrets[i] = evalPoly(coefs, i) % q
+        encryptedSecrets[i] = pow(h, secrets[i]) % p
 
     shares = [-1] * int(n)
     encryptedShares = [-1] * int(n)
     for i in range(1, n+1):
-        shares[i-1] = poly.eval(X,i) % q
-        encryptedShares[i-1] = int(pow(pk, shares[i-1]) % q)
+        shares[i-1] = evalPoly(coefs, i) % q
+        encryptedShares[i-1] = int(pow(pk, shares[i-1]) % p)
 
     return secrets, encryptedSecrets, shares, encryptedShares
+
+# Eval poly using Horner
+def evalPoly(coefs, x):
+    y = 0
+    for a in coefs:
+        y = y * x + a
+    return y
 
 
 
@@ -62,7 +73,7 @@ def generateLDEI(poly, encryptedShares, pk, n, q, t, l) -> LDEI:
     auxPolynom = generatePolynom(t+1, l, q) # Generating random polynom of degree t+l+1
     auxComputedPoly = [-1] * n
     for i in range(1, n+1):
-        auxComputedPoly[i-1] = auxPolynom.eval(X, i) % q
+        auxComputedPoly[i-1] = evalPoly(auxPolynom, i) % q
 
     a = [-1] * len(auxComputedPoly)
     for i in range(0, n):
@@ -72,11 +83,17 @@ def generateLDEI(poly, encryptedShares, pk, n, q, t, l) -> LDEI:
     # We use "custom" hash function because lists are not hashable    
     e = (sum((a[i-1] * i * encryptedShares[i-1]) for i in range(1, n+1))) % q
 
-    temp = poly.mul_ground(e).set_modulus(q)
-    
-    z = temp.add(auxPolynom).set_modulus(q)
 
-    return LDEI(a, e, z)
+    temp = [-1] * len(poly)
+    # Multiply poly with e
+    for i in range(len(poly)):
+        temp[i] = poly[i] * e % q
+
+    z = [(a + b)%q for a, b in zip(temp, auxPolynom)]
+
+    # return LDEI(a, e, z)
+    return a,e,z
+
 
 
 def verifyLDEI(ldei: LDEI, publicKey, shares, n, q):

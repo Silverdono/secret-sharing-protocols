@@ -1,12 +1,14 @@
 from sympy import Poly
 from random import randint
+import utils
 
 class Ledger:
 
     # Defining global variable for the ledger
     nParticipants = -1  # n
     tolerance = -1      # t
-    sizeDomain = -1     # q
+    sizeDomain = -1     # p
+    order = -1          # q
     generator = -1      # h
     l = -1              # l
 
@@ -20,10 +22,11 @@ class Ledger:
 
     recoPartOrdinal = [] # Reconstruction participants' ordinal
 
-    def __init__(self, n: int, q: int, h: int):
+    def __init__(self, n: int, p: int, h: int):
         self.nParticipants = n
-        self.sizeDomain = q
+        self.sizeDomain = p
         self.generator = h
+        self.order = utils.findMultiplicativeOrder(h,p)
 
         self.w = randint(0, self.sizeDomain)
 
@@ -106,7 +109,7 @@ class Ledger:
 
         if(len(self.decryptedShares) == self.nParticipants):
             for i in self.decryptedShares:
-                hS.append(pow(self.generator, i, self.sizeDomain))
+                hS.append(pow(self.generator, i, self.order))
         else:
             hS = self.reconstructionOfSecrets()
 
@@ -134,7 +137,7 @@ class Ledger:
         for i in range(self.l):
             row = []
             for j in range(self.l + self.tolerance):
-                tmp = pow(self.w, i * j, self.sizeDomain)
+                tmp = pow(self.w, i * j, self.order)
                 if tmp == 0:
                     tmp = 1
                 row.append(tmp)    

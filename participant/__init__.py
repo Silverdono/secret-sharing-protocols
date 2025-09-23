@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, session
-from sympy import Poly, Integer
 import json
 import utils
+from ldei import LDEI
 
 
 ordinal = -1
@@ -22,6 +22,7 @@ def create_app(nOrdinal):
         print(bodyContent)
         session['n'] = bodyContent['n']
         session['t'] = bodyContent['t']
+        session['p'] = bodyContent['p']
         session['q'] = bodyContent['q']
         session['h'] = bodyContent['h']
         session['l'] = bodyContent['l']
@@ -31,10 +32,11 @@ def create_app(nOrdinal):
     @app.get("/get_public_key")
     def sendPublickKey():
         if(validateContext()):
+            p : int = session.get('p')
             q : int = session.get('q')
             h : int = session.get('h')
             if('publicKey' not in session):
-                pk, sk = utils.generateKeys(q, h)
+                pk, sk = utils.generateKeys(h, q, p)
                 session['publicKey'] = pk
                 session['secretKey'] = sk
                 return jsonify({'pk' : pk})
@@ -49,18 +51,19 @@ def create_app(nOrdinal):
             t = session.get('t')
             l = session.get('l')
             q = session.get('q')
+            p = session.get('p')
             publicKey = session.get('publicKey')
             n = session.get('n')
             h = session.get('h')
             if('polynom' not in session):
                 session['polynom'] = utils.generatePolynom(t, l, q)
             if('secrets' not in session):
-                secrets, encryptedSecrets, shares, encryptedShares = utils.computePolynom(session.get('polynom'), publicKey, l, n, q, h)
+                secrets, encryptedSecrets, shares, encryptedShares = utils.computePolynom(session.get('polynom'), publicKey, l, n, q, p, h)
                 session['secrets'] = secrets
                 session['encryptedSecrets'] = encryptedSecrets
                 session['shares'] = shares
                 session['encryptedShares'] = encryptedShares
-                
+
                 return jsonify({'eS' : encryptedShares})
             else:
                 return jsonify({'eS' : session.get('encryptedShares')})
@@ -76,23 +79,28 @@ def create_app(nOrdinal):
            or 'encryptedShares' not in session):
             t = session.get('t')
             l = session.get('l')
+            p = session.get('p')
             q = session.get('q')
             publicKey = session.get('publicKey')
             n = session.get('n')
             polynom = session.get('polynom')
             encryptedShares = session.get('encryptedShares')
             if('computedLDEI' not in session):
-                computedLDEI = utils.generateLDEI(polynom, encryptedShares, publicKey, n, q, t, l)
+                auxA, auxE, auxZ = utils.generateLDEI(polynom, encryptedShares, publicKey, n, q, t, l)
+                computedLDEI = {'a' : auxA, 'e': auxE, 'z' : auxZ}
                 session['computedLDEI'] = computedLDEI
-                return jsonify({'ldei' : computedLDEI})
+
+                return jsonify({'a' : auxA, 'e': auxE, 'z' : auxZ})
             else:
-                return jsonify({'ldei' : session.get('computedLDEI')})
+                computedLDEI = session.get('computedLDEI')
+                return jsonify({'a' : computedLDEI['a'], 'e': computedLDEI['e'], 'z' : computedLDEI['z']})
         else:
             return "Non valid context"        
 
     def validateContext():
         if(session.get('n') == -1 
         or session.get('t') == -1
+        or session.get('p') == -1
         or session.get('q') == -1
         or session.get('h') == -1
         or session.get('l') == -1
@@ -100,10 +108,5 @@ def create_app(nOrdinal):
             return False
         else:
             return True
-
-    def convert(o):
-        if isinstance(o, Integer):
-            return int(o)  
-        raise TypeError
 
     return app
