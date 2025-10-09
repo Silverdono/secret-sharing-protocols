@@ -67,8 +67,7 @@ def evalPoly(coefs, x):
 
 
 # Generate LDEI proof for a computed polynom using a list of his coefficients in case coef[i] = 0
-# TODO: consultar esto, no queda claro si se hace con todas las claves publicas o solo con la propia
-def generateLDEI(poly, encryptedShares, pk, n, q, t, l) -> LDEI:
+def generateLDEI(poly, encryptedShares, pk : list[int], n, q, t, l):
 
     auxPolynom = generatePolynom(t+1, l, q) # Generating random polynom of degree t+l+1
     auxComputedPoly = [-1] * n
@@ -77,7 +76,7 @@ def generateLDEI(poly, encryptedShares, pk, n, q, t, l) -> LDEI:
 
     a = [-1] * len(auxComputedPoly)
     for i in range(0, n):
-        a[i] = pow(pk, auxComputedPoly[i]) % q
+        a[i] = pow(pk[i], auxComputedPoly[i]) % q
 
     # Literature about this process calculates e as the hash of the auxiliar polynom
     # We use "custom" hash function because lists are not hashable    

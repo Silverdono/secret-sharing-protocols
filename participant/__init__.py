@@ -72,12 +72,14 @@ def create_app(nOrdinal):
         else:
             return "Non valid context"        
 
-    @app.get("/get_ldei")
+    @app.post("/get_ldei")
     def sendLDEI():
         if(validateContext() 
            and ('publicKey' in session) 
            and ('polynom' in session)
            and ('encryptedShares' in session)):
+            bodyContent = request.json
+            allPublicKeys = bodyContent['pks']
             t = session.get('t')
             l = session.get('l')
             p = session.get('p')
@@ -87,7 +89,7 @@ def create_app(nOrdinal):
             polynom = session.get('polynom')
             encryptedShares = session.get('encryptedShares')
             if('computedLDEI' not in session):
-                auxA, auxE, auxZ = utils.generateLDEI(polynom, encryptedShares, publicKey, n, q, t, l)
+                auxA, auxE, auxZ = utils.generateLDEI(polynom, encryptedShares, allPublicKeys, n, q, t, l)
                 computedLDEI = {'a' : auxA, 'e': auxE, 'z' : auxZ}
                 session['computedLDEI'] = computedLDEI
 

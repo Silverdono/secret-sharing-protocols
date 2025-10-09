@@ -31,8 +31,8 @@ class Part:
         self.ordinal = ordinal
         self.publicKey, self.privateKey = utils.generateKeys(h, q, p)
         self.polynom = utils.generatePolynom(t, l, q)
-        self.secrets, self.encryptedSecrets, self.shares, self.encryptedShares = utils.computePolynom(self.polynom,self.publicKey, l, n, q, p, h)
-        self.computedLDEI = utils.generateLDEI(self.polynom, self.encryptedShares, self.publicKey, n, q, t, l)
+        self.secrets, self.encryptedSecrets, self.shares, self.encryptedShares = utils.computePolynom(self.polynom,self.publicKey, l, n, q, p, h) # Outdated utils function
+        self.computedLDEI = utils.generateLDEI(self.polynom, self.encryptedShares, self.publicKey, n, q, t, l) # Outdated utils function
 
     # Return the ordinal number of the participant and his public key
     def sendPublicKey(self):
