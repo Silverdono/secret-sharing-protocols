@@ -1,10 +1,8 @@
-from sympy import Poly
-
 class LDEI:
 
     a = []
     e = -1
-    z = Poly
+    z = []
 
     def __init__(self, a, e, z):
         self.a = a

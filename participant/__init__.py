@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, session
-import json
+from random import getrandbits
 import utils
-from ldei import LDEI
+import requests
 
 
 ordinal = -1
@@ -15,6 +15,8 @@ def create_app(nOrdinal):
 
     import secrets as sessionSecret
     app.secret_key = sessionSecret.token_hex()
+
+    goodParticipant : bool = not not getrandbits(1) # Negating twice the random bit is faster than cast a bool
 
     @app.route('/setup_variables', methods = ["POST"])
     def setupVariables():
@@ -47,7 +49,7 @@ def create_app(nOrdinal):
 
     @app.get("/get_encrypted_shares")
     def sendEncryptedShares():
-        if(validateContext() or 'publicKey' not in session):
+        if(validateContext() and ('publicKey' in session)):
             t = session.get('t')
             l = session.get('l')
             q = session.get('q')
@@ -70,13 +72,12 @@ def create_app(nOrdinal):
         else:
             return "Non valid context"        
 
-
     @app.get("/get_ldei")
     def sendLDEI():
         if(validateContext() 
-           or 'publicKey' not in session 
-           or 'polynom' not in session
-           or 'encryptedShares' not in session):
+           and ('publicKey' in session) 
+           and ('polynom' in session)
+           and ('encryptedShares' in session)):
             t = session.get('t')
             l = session.get('l')
             p = session.get('p')
@@ -96,6 +97,16 @@ def create_app(nOrdinal):
                 return jsonify({'a' : computedLDEI['a'], 'e': computedLDEI['e'], 'z' : computedLDEI['z']})
         else:
             return "Non valid context"        
+
+    @app.get("/post_shares")
+    def postShares():
+        if(validateContext()
+           and ('shares' in session)):
+            if(goodParticipant):    
+                shares = session.get('shares')
+                requests.post("http://localhost:6000/post_shares", None, {'shares': shares}) # Post shares to ledger
+        else:
+            return "Non valid context"    
 
     def validateContext():
         if(session.get('n') == -1 

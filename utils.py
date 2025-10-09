@@ -103,7 +103,7 @@ def verifyLDEI(ldei: LDEI, publicKey, shares, n, q):
     auxZeval = [-1] * n
 
     for i in range(1, n+1):
-        auxZeval[i-1] = ldei.z.eval(X, i) % q
+        auxZeval[i-1] = evalPoly(ldei.z,i) % q
 
     for i in range(n):
         temp1 = pow(publicKey, auxZeval[i]) % q

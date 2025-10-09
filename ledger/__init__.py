@@ -2,9 +2,9 @@ from flask import Flask, request, session
 from random import randint
 import requests
 import json
-import sys
 import utils
 from . import functions
+from ldei import LDEI
 
 
 def create_app(n, p):
@@ -85,7 +85,11 @@ def create_app(n, p):
             tmpUrl += str(i) + "/get_ldei"
 
         response = requests.get(tmpUrl).json()
-        ldeis[i] = json.load(response)['ldei']
+        responseJson = json.load(response)
+        tmpA = responseJson['a']
+        tmpE = responseJson['e']
+        tmpZ = responseJson['z']
+        ldeis[i] = LDEI(tmpA, tmpE, tmpZ)
 
     @app.post("/post_shares")
     def postShares():
