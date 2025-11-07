@@ -1,5 +1,6 @@
 from flask import Flask, request, session
 from random import randint
+from ecpy.curves import Curve
 import requests
 import json
 import utils
@@ -7,7 +8,7 @@ from . import functions
 from ldei import LDEI
 
 
-def create_app(n, p):
+def create_app(n, p, elliptic : bool):
 
     app = Flask("Public ledger")
 
@@ -26,70 +27,122 @@ def create_app(n, p):
     encryptedShares = [] # Participants' encrypted shares
     ldeis = [] # Participants' computed LDEIs
 
+    EC : Curve
+
     # Send data to participants
 
     url = "http://localhost:50"
 
-    jsonBody = {
-        'n' : n,
-        'q' : q,
-        'p' : p,
-        'h' : h,
-        't' : t,
-        'l' : l
-    }
+    if(not elliptic):
+        jsonBody = {
+            'n' : n,
+            'q' : q,
+            'p' : p,
+            'h' : h,
+            't' : t,
+            'l' : l
+        }
 
-    for i in range (n):
-        tmpUrl = url
-        if(i/10 < 1):
-            tmpUrl += "0" + str(i) + "/setup_variables"
-        else:
-            tmpUrl += str(i) + "/setup_variables"
+        for i in range (n):
+            tmpUrl = url
+            if(i/10 < 1):
+                tmpUrl += "0" + str(i) + "/setup_variables"
+            else:
+                tmpUrl += str(i) + "/setup_variables"
 
-        requests.post(tmpUrl, None, jsonBody)
-
-
-    # Request public keys
-
-    for i in range (n):
-        tmpUrl = url
-        if(i/10 < 1):
-            tmpUrl += "0" + str(i) + "/get_public_key"
-        else:
-            tmpUrl += str(i) + "/get_public_key"
-
-        response = requests.get(tmpUrl)
-        print(response)
-        publicKeys[i] = json.load(response)['pk']
+            requests.post(tmpUrl, None, jsonBody)
 
 
-    # Request encrypted shares
+        # Request public keys
 
-    for i in range (n):
-        tmpUrl = url
-        if(i/10 < 1):
-            tmpUrl += "0" + str(i) + "/get_encrypted_shares"
-        else:
-            tmpUrl += str(i) + "/get_encrypted_shares"
+        for i in range (n):
+            tmpUrl = url
+            if(i/10 < 1):
+                tmpUrl += "0" + str(i) + "/get_public_key"
+            else:
+                tmpUrl += str(i) + "/get_public_key"
 
-        response = requests.get(tmpUrl).json()
-        encryptedShares[i] = json.load(response)['eS']
+            response = requests.get(tmpUrl)
+            print(response)
+            publicKeys[i] = json.load(response)['pk']
 
-    # Request computed LDEIs
 
-    for i in range (n):
-        tmpUrl = url
-        if(i/10 < 1):
-            tmpUrl += "0" + str(i) + "/get_ldei"
-        else:
-            tmpUrl += str(i) + "/get_ldei"
+        # Request encrypted shares
 
-        response = requests.get(tmpUrl).json()
-        responseJson = json.load(response)
-        tmpA = responseJson['a']
-        tmpE = responseJson['e']
-        tmpZ = responseJson['z']
-        ldeis[i] = LDEI(tmpA, tmpE, tmpZ)
+        for i in range (n):
+            tmpUrl = url
+            if(i/10 < 1):
+                tmpUrl += "0" + str(i) + "/get_encrypted_shares"
+            else:
+                tmpUrl += str(i) + "/get_encrypted_shares"
+
+            response = requests.get(tmpUrl).json()
+            encryptedShares[i] = json.load(response)['eS']
+
+        # Request computed LDEIs
+
+        for i in range (n):
+            tmpUrl = url
+            if(i/10 < 1):
+                tmpUrl += "0" + str(i) + "/get_ldei"
+            else:
+                tmpUrl += str(i) + "/get_ldei"
+
+            response = requests.get(tmpUrl).json()
+            responseJson = json.load(response)
+            tmpA = responseJson['a']
+            tmpE = responseJson['e']
+            tmpZ = responseJson['z']
+            ldeis[i] = LDEI(tmpA, tmpE, tmpZ)
+    else:
+
+        curveName : str = 'secp256k1'
+        EC = Curve.get_curve(curveName)
+
+        jsonBody = {
+            'n' : n,
+            'q' : q,
+            'p' : p,
+            'ec_name' : curveName,
+            't' : t,
+            'l' : l
+        }
+
+        for i in range (n):
+            tmpUrl = url
+            if(i/10 < 1):
+                tmpUrl += "0" + str(i) + "/setup_variables_ec"
+            else:
+                tmpUrl += str(i) + "/setup_variables_ec"
+
+            requests.post(tmpUrl, None, jsonBody)
+
+
+        # Request public keys
+
+        for i in range (n):
+            tmpUrl = url
+            if(i/10 < 1):
+                tmpUrl += "0" + str(i) + "/get_public_key_ec"
+            else:
+                tmpUrl += str(i) + "/get_public_key_ec"
+
+            response = requests.get(tmpUrl)
+            print(response)
+            publicKeys[i] = json.load(response)['pk']
+
+
+        # Request encrypted shares
+
+        for i in range (n):
+            tmpUrl = url
+            if(i/10 < 1):
+                tmpUrl += "0" + str(i) + "/get_encrypted_shares_ec"
+            else:
+                tmpUrl += str(i) + "/get_encrypted_shares_ec"
+
+            response = requests.get(tmpUrl).json()
+            encryptedShares[i] = json.load(response)['eS']
 
     @app.post("/post_shares")
     def postShares():

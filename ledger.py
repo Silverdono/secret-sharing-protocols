@@ -1,5 +1,6 @@
-from sympy import Poly
 from random import randint
+from ecpy.curves import Curve
+from ldei import LDEI
 import utils
 
 class Ledger:
@@ -14,6 +15,8 @@ class Ledger:
 
     w = -1 # w for Vandermonde matrix
 
+    EC : Curve = None # Elliptic curve
+
     publicKeys = []
     ldeis = []
     shares = []
@@ -22,13 +25,16 @@ class Ledger:
 
     recoPartOrdinal = [] # Reconstruction participants' ordinal
 
-    def __init__(self, n: int, p: int, h: int):
+    def __init__(self, n: int, p: int, elliptic: bool):
         self.nParticipants = n
         self.sizeDomain = p
-        self.generator = h
-        self.order = utils.findMultiplicativeOrder(h,p)
+        self.generator = utils.findGenerator(p)
+        self.order = utils.findMultiplicativeOrder(self.generator,p)
 
-        self.w = randint(0, self.sizeDomain)
+        self.w = randint(0, self.order)
+
+        if(elliptic):
+            self.EC = Curve.get_curve('secp256k1')
 
         self.tolerance = int(n/3) # A bit arbitrary this value
         self.l = int(n - 2 * self.tolerance)
@@ -58,7 +64,7 @@ class Ledger:
     def addDecryptedShares(self, shares: list):
         self.decryptedShares.append(shares)
 
-    def addLDEI(self, ordinal:int, ldei: Poly):
+    def addLDEI(self, ordinal:int, ldei: LDEI):
         if len(self.ldeis) < ordinal:
             for i in range(len(self.ldeis)-1, ordinal-1):
                 self.ldeis.append(None)
@@ -75,6 +81,15 @@ class Ledger:
     def getL(self) -> int:
         return self.l            
     
+    def getGenerator(self) -> int:
+        return self.generator
+    
+    def getEC(self) -> Curve | None:
+        return self.EC
+    
+    def getOrder(self) -> int:
+        return self.order
+
     def addRecoParticipant(self, participantOrdinal):
         self.recoPartOrdinal.append(participantOrdinal)
 

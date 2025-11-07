@@ -7,12 +7,12 @@ def runParticipant(port):
     subprocess.run(command)
 
 def runLedger(port, n, q):
-    command = "python -m flask --app ledger:create_app(" + str(n) + "," + str(q) + ") run -p " + str(port)
+    command = "python -m flask --app ledger:create_app(" + str(n) + "," + str(q) + ", false) run -p " + str(port)
     subprocess.run(command)    
 
 
 # Main script to load all participants and the ledger for the simulation
-n, q = 5, 523
+n, q = 1, 523
 
 # Load participants
 for i in range(n):

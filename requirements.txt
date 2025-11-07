@@ -1,3 +1,2 @@
-mpmath
-sympy
 Flask
+ecpy

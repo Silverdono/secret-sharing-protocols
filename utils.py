@@ -1,6 +1,7 @@
 from random import randint
 from ldei import LDEI
 from dleq import DLEQ
+from ecpy.curves import Point
 
 # Generate random key winthin order cyclic group
 def generateKeys(h: int, q: int, p : int):
@@ -56,6 +57,18 @@ def computePolynom(coefs, pk, l:int, n, q, p, h):
         encryptedShares[i-1] = int(pow(pk, shares[i-1]) % p)
 
     return secrets, encryptedSecrets, shares, encryptedShares
+
+
+def computePolynomEC(coefs, EPK : Point, n, q):
+
+    shares = [-1] * int(n)
+    encryptedShares = [-1] * int(n)
+
+    for i in range(1, n+1):
+        shares[i-1] = evalPoly(coefs, i) % q
+        encryptedShares[i-1] = EPK.mul(shares[i-1])
+
+    return shares, encryptedShares
 
 # Eval poly using Horner
 def evalPoly(coefs, x):
