@@ -58,12 +58,10 @@ def create_app(nOrdinal):
             publicKey = session.get('publicKey')
             n = session.get('n')
             h = session.get('h')
-            if('polynom' not in session):
-                session['polynom'] = utils.generatePolynom(t, l, q)
-            if('secrets' not in session):
-                secrets, encryptedSecrets, shares, encryptedShares = utils.computePolynom(session.get('polynom'), publicKey, l, n, q, p, h)
-                session['secrets'] = secrets
-                session['encryptedSecrets'] = encryptedSecrets
+            if('polynomial' not in session):
+                session['polynomial'] = utils.generatePolynomial(t, l, q)
+            if('shares' not in session):
+                shares, encryptedShares = utils.computePolynomial(session.get('polynomial'), publicKey, l, n, q, p)
                 session['shares'] = shares
                 session['encryptedShares'] = encryptedShares
 
@@ -77,20 +75,19 @@ def create_app(nOrdinal):
     def sendLDEI():
         if(validateContext() 
            and ('publicKey' in session) 
-           and ('polynom' in session)
+           and ('polynomial' in session)
            and ('encryptedShares' in session)):
             bodyContent = request.json
             allPublicKeys = bodyContent['pks']
             t = session.get('t')
             l = session.get('l')
-            p = session.get('p')
             q = session.get('q')
-            publicKey = session.get('publicKey')
+            p = session.get('p')
             n = session.get('n')
-            polynom = session.get('polynom')
+            polynomial = session.get('polynomial')
             encryptedShares = session.get('encryptedShares')
             if('computedLDEI' not in session):
-                auxA, auxE, auxZ = utils.generateLDEI(polynom, encryptedShares, allPublicKeys, n, q, t, l)
+                auxA, auxE, auxZ = utils.generateLDEI(polynomial, encryptedShares, allPublicKeys, n, q, p, t, l)
                 computedLDEI = {'a' : auxA, 'e': auxE, 'z' : auxZ}
                 session['computedLDEI'] = computedLDEI
 
@@ -105,9 +102,9 @@ def create_app(nOrdinal):
     def postShares():
         if(validateContext()
            and ('shares' in session)):
-            if(goodParticipant):    
-                shares = session.get('shares')
-                requests.post("http://localhost:6000/post_shares", None, {'shares': shares}) # Post shares to ledger
+            # if(goodParticipant):    
+            shares = session.get('shares')
+            requests.post("http://localhost:6000/post_shares", None, {'shares': shares}) # Post shares to ledger
         else:
             return "Non valid context"    
         
@@ -118,12 +115,12 @@ def create_app(nOrdinal):
         bodyContent = request.json
         session['n'] = bodyContent['n']
         session['t'] = bodyContent['t']
-        session['p'] = bodyContent['p']
-        session['q'] = bodyContent['q']
 
         curveName : str = bodyContent['ec_name']
         session['ec_name'] = curveName
-        session['ec'] = Curve.get_curve(curveName)
+        curve = Curve.get_curve(curveName)
+        session['ec'] = curve
+        session['q'] = curve._domain["order"]
 
         session['l'] = bodyContent['l']
         return "Variables saved"    
@@ -131,7 +128,6 @@ def create_app(nOrdinal):
     @app.get("/get_public_key_ec")
     def sendPublickKeyEC():
         if(validateContextEC()):
-            p : int = session.get('p')
             q : int = session.get('q')
             ec : Curve = session.get('ec')
             if('publicKey' not in session):
@@ -155,10 +151,10 @@ def create_app(nOrdinal):
             q = session.get('q')
             publicKey : ECPublicKey = session.get('publicKey')
             n = session.get('n')
-            if('polynom' not in session):
-                session['polynom'] = utils.generatePolynom(t, l, q)
-            if('secrets' not in session):
-                shares, encryptedShares = utils.computePolynomEC(session.get('polynom'), publicKey.W, n, q)
+            if('polynomial' not in session):
+                session['polynomial'] = utils.generatePolynomial(t, l, q)
+            if('shares' not in session):
+                shares, encryptedShares = utils.computePolynomialEC(session.get('polynomial'), publicKey.W, n, q)
                 session['shares'] = shares
                 session['encryptedShares'] = encryptedShares
 
@@ -167,6 +163,33 @@ def create_app(nOrdinal):
                 return jsonify({'eS' : session.get('encryptedShares')})
         else:
             return "Non valid context"         
+        
+
+    @app.post("/get_ldei_ec")
+    def sendLDEI_EC():
+        if(validateContextEC() 
+           and ('publicKey' in session) 
+           and ('polynomial' in session)
+           and ('encryptedShares' in session)):
+            bodyContent = request.json
+            allPublicKeys = bodyContent['pks']
+            t = session.get('t')
+            l = session.get('l')
+            q = session.get('q')
+            n = session.get('n')
+            polynomial = session.get('polynomial')
+            encryptedShares = session.get('encryptedShares')
+            if('computedLDEI' not in session):
+                auxA, auxE, auxZ = utils.generateLDEI_EC(polynomial, encryptedShares, allPublicKeys, n, q, t, l)
+                computedLDEI = {'a' : auxA, 'e': auxE, 'z' : auxZ}
+                session['computedLDEI'] = computedLDEI
+
+                return jsonify({'a' : auxA, 'e': auxE, 'z' : auxZ})
+            else:
+                computedLDEI = session.get('computedLDEI')
+                return jsonify({'a' : computedLDEI['a'], 'e': computedLDEI['e'], 'z' : computedLDEI['z']})
+        else:
+            return "Non valid context"            
 
     def validateContext():
         if(session.get('n') == -1 

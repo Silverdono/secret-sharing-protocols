@@ -10,15 +10,20 @@ class Part:
     # Ordinal number of participant to distinguish properly
     ordinal = -1
 
+    #Shared parameters
+    n : int
+    q : int
+    p : int
+    t : int
+    l : int
+
     # Keys
     publicKey = -1 # pk -> h**sk
     privateKey = -1 # sk
 
-    # Plain polynom
-    polynom = []
+    # Plain polynomial
+    polynomial = []
 
-    secrets = []
-    encryptedSecrets = []
     shares = []
     encryptedShares = []
 
@@ -29,29 +34,40 @@ class Part:
 
     #Elliptic curves
     EC = Curve
-    P = Point
     EPK = ECPublicKey # Elliptic Public Key
     ESK = ECPrivateKey # Elliptic Secret Key
 
-    # Initiate participant saving global variables and generating keys USING CICLIC GROUP
-    def __init__(self, ordinal: int, t: int, l: int, n: int, q: int, p: int, h: int):
-        self.ordinal = ordinal
-        self.publicKey, self.privateKey = utils.generateKeys(h, q, p)
-        self.polynom = utils.generatePolynom(t, l, q)
-        self.secrets, self.encryptedSecrets, self.shares, self.encryptedShares = utils.computePolynom(self.polynom,self.publicKey, l, n, q, p, h)
-        auxA, auxE, auxZ = utils.generateLDEI(self.polynom, self.encryptedShares, self.publicKey, n, q, t, l) #TODO: change self.publicKey with publicKey of all participants
+    def __init__(self, ordinal: int, t: int, l: int, n: int, q: int, p: int, h:int, EC: Curve, EC_FLAG:bool):
+        if(EC_FLAG):
+            # Initiate participant saving global variables and generating keys USING ELLIPTIC CURVES
+            self.ordinal = ordinal
+            self.EC = EC
+            q = self.EC._domain["order"]
+            self.q = self.EC._domain["order"]
+            self.privateKey = randint(1, int(q)-1) # Scalar
+            self.ESK = ECPrivateKey(self.privateKey, EC) # Bit redundant as ESK just stores the elliptic curve EC and the scalar self.privateKey
+            self.EPK = self.ESK.get_public_key()
+            self.polynomial = utils.generatePolynomial(t, l, q)
+            self.shares, self.encryptedShares = utils.computePolynomialEC(self.polynomial,self.EPK.W, n, q)
+        else:
+            # Initiate participant saving global variables and generating keys USING CICLIC GROUP
+            self.ordinal = ordinal
+            self.n = n
+            self.q = q
+            self.p = p
+            self.t = t
+            self.l = l
+            self.publicKey, self.privateKey = utils.generateKeys(h, q, p)
+            self.polynomial = utils.generatePolynomial(t, l, q)
+            self.shares, self.encryptedShares = utils.computePolynomial(self.polynomial,self.publicKey, l, n, q, p)
+
+    def generateLDEI(self, pks: list[int]):
+        auxA, auxE, auxZ = utils.generateLDEI(self.polynomial, self.encryptedShares, pks, self.n, self.q, self.p, self.t, self.l)
         self.computedLDEI = LDEI(auxA, auxE, auxZ)
 
-    # Initiate participant saving global variables and generating keys USING ELLIPTIC CURVES
-    def __init__(self, ordinal: int, t: int, l: int, n: int, q: int, p: int, EC: Curve):
-        self.ordinal = ordinal
-        self.EC = EC
-        self.privateKey = randint(1, int(q)-1) # Scalar
-        self.ESK = ECPrivateKey(self.privateKey, EC) # Bit redundant as ESK just stores the elliptic curve EC and the scalar self.privateKey
-        self.EPK = self.ESK.get_public_key()
-        self.polynom = utils.generatePolynom(t, l, q)
-        self.shares, self.encryptedShares = utils.computePolynomEC(self.polynom,self.EPK.W, n, q)
-
+    def generateLDEI_EC(self, pks: list[Point]):
+        auxA, auxE, auxZ = utils.generateLDEI_EC(self.polynomial, self.encryptedShares, pks, self.n, self.q, self.p, self.t, self.l)
+        self.computedLDEI = LDEI(auxA, auxE, auxZ)
 
     # Return the ordinal number of the participant and his public key
     def sendPublicKey(self):
@@ -67,7 +83,14 @@ class Part:
     
     # Return the ordinal number of the participant and his ldei
     def sendLDEI(self):
-        return self.ordinal, self.computedLDEI
+        if(self.computedLDEI != None):   
+            return self.ordinal, self.computedLDEI
+        else:
+            return None
+        
+    # Return plain shares    
+    def sendShares(self):
+        return self.ordinal, self.shares    
     
 
     # Compute DLEQ proof for himself

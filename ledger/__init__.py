@@ -23,9 +23,9 @@ def create_app(n, p, elliptic : bool):
 
     w = randint(0, q) # Base used for vandermonde matrix smaller than multiplicative order of q
 
-    publicKeys = [] # Participants' public keys
-    encryptedShares = [] # Participants' encrypted shares
-    ldeis = [] # Participants' computed LDEIs
+    publicKeys = [-1] * n # Participants' public keys
+    encryptedShares = [-1] * n # Participants' encrypted shares
+    ldeis = [-1] * n # Participants' computed LDEIs
 
     EC : Curve
 

@@ -144,29 +144,3 @@ class Ledger:
                 S[self.l - j - 1] = (S[self.l - j - 1] * tmp) % self.sizeDomain
 
         return S        
-
-    def generateVandermondeMatrix(self):
-        
-        self.vandermonde = []
-
-        for i in range(self.l):
-            row = []
-            for j in range(self.l + self.tolerance):
-                tmp = pow(self.w, i * j, self.order)
-                if tmp == 0:
-                    tmp = 1
-                row.append(tmp)    
-            self.vandermonde.append(row)
-        
-        return self.vandermonde
-    
-
-    def generateResultMatrix(self):
-
-        resultMatrix = []
-
-        for i in range(len(self.vandermonde)):
-            temp = self.vandermonde[i] * hS
-            resultMatrix.append(temp)
-
-        return resultMatrix

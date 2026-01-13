@@ -14,3 +14,7 @@ class LDEI:
 
     def __str__(self) -> str:
         return "{a = " + str(self.a) + ", e = " + str(self.e) + ", z = " + str(self.z) + "}"
+    
+    def __eq__(self,ldei):
+        if isinstance(ldei, LDEI):
+            return (self.a == ldei.a and self.e == ldei.e and self.z == ldei.z)
