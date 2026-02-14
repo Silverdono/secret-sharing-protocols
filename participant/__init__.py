@@ -1,215 +1,381 @@
-from flask import Flask, request, jsonify, session
+import logging
+from flask import Flask, request, jsonify
 from ecpy.curves import Curve, Point
 from ecpy.keys import ECPrivateKey, ECPublicKey
 from random import getrandbits, randint
 import utils
-import requests
+import json
+import time
 
 
-ordinal = -1
-
-
-
-def create_app(nOrdinal):
+def create_app(nOrdinal, debug_mode : bool):
     global ordinal
     ordinal = nOrdinal
     app = Flask("Participant " + str(ordinal))
 
+    global debugMode
+    debugMode = debug_mode
+
+
     import secrets as sessionSecret
     app.secret_key = sessionSecret.token_hex()
 
+    logging.getLogger("werkzeug").setLevel(logging.WARNING) # Remove verbosity in stdout from useless logs
+
     goodParticipant : bool = not not getrandbits(1) # Negating twice the random bit is faster than cast a bool
+
+    # Variable declaration for all workflows
+    n : int
+    t : int
+    p : int
+    q : int
+    h : int
+    l : int
+    ec : Curve
+    ecName : str
+
+    #Cyclic group variables
+    global pk_cg
+    pk_cg = None
+    global sk_cg
+    sk_cg = None
+    global encrypt_shares_cg
+    encrypt_shares_cg = None
+    global computedLDEI_cg
+    computedLDEI_cg = None
+
+    #Elliptic curve 
+    global pk_ec
+    pk_ec = None
+    global sk_ec
+    sk_ec = None
+    global encrypt_shares_ec
+    encrypt_shares_ec = None
+    global computedLDEI_ec
+    computedLDEI_ec = None
+
+
+    global plainShares
+    plainShares = None
+    global polynomial
+    polynomial = None
 
     #Cyclic group
     @app.route('/setup_variables', methods = ["POST"])
     def setupVariables():
+        start_time = time.time()
         bodyContent = request.json
-        session['n'] = bodyContent['n']
-        session['t'] = bodyContent['t']
-        session['p'] = bodyContent['p']
-        session['q'] = bodyContent['q']
-        session['h'] = bodyContent['h']
-        session['l'] = bodyContent['l']
+        global n
+        n = bodyContent['n']
+        global t
+        t = bodyContent['t']
+        global p
+        p = bodyContent['p']
+        global q
+        q = bodyContent['q']
+        global h
+        h = bodyContent['h']
+        global l
+        l = bodyContent['l']
+
+        end_time = time.time()
+        global ordinal
+        global debugMode
+        if(debugMode):
+            print("Setup variables {", ordinal,"}: ", end_time-start_time)
         return "Variables saved"
 
     @app.get("/get_public_key")
     def sendPublickKey():
         if(validateContext()):
-            p : int = session.get('p')
-            q : int = session.get('q')
-            h : int = session.get('h')
-            if('publicKey' not in session):
+            start_time = time.time()
+
+            global p
+            global q
+            global h
+            global pk_cg
+            if(pk_cg == None):
                 pk, sk = utils.generateKeys(h, q, p)
-                session['publicKey'] = pk
-                session['secretKey'] = sk
-                return jsonify({'pk' : pk})
-            else:
-                return jsonify({'pk' : session.get('publicKey')})
-        else:
-            return "Non valid context"    
+                pk_cg = pk
+                global sk_cg
+                sk_cg = sk
 
-    @app.get("/get_encrypted_shares")
+            end_time = time.time()
+            global ordinal
+            global debugMode
+            if(debugMode):
+                print("Generating keys {", ordinal,"}: ", end_time-start_time)
+            return jsonify({'pk' : pk_cg})
+        else:
+            return "Non valid context", 400    
+
+    @app.post("/get_encrypted_shares")
     def sendEncryptedShares():
-        if(validateContext() and ('publicKey' in session)):
-            t = session.get('t')
-            l = session.get('l')
-            q = session.get('q')
-            p = session.get('p')
-            publicKey = session.get('publicKey')
-            n = session.get('n')
-            h = session.get('h')
-            if('polynomial' not in session):
-                session['polynomial'] = utils.generatePolynomial(t, l, q)
-            if('shares' not in session):
-                shares, encryptedShares = utils.computePolynomial(session.get('polynomial'), publicKey, l, n, q, p)
-                session['shares'] = shares
-                session['encryptedShares'] = encryptedShares
+        global pk_cg
+        if(validateContext() and (pk_cg != None)):
 
-                return jsonify({'eS' : encryptedShares})
-            else:
-                return jsonify({'eS' : session.get('encryptedShares')})
+            start_time = time.time()
+
+            global n
+            global t
+            global p
+            global q
+            global h
+            global l
+            global polynomial
+            global plainShares
+            global encrypt_shares_cg
+
+            bodyContent = request.json
+            allPublicKeysBody = json.loads(bodyContent['pks'])
+
+            allPublicKeys = [int(pk) for pk in allPublicKeysBody]
+            
+            if(polynomial == None):
+                polynomial = utils.generatePolynomial(t, l, q)
+            if(plainShares == None):
+                shares, encryptedShares = utils.computePolynomial(polynomial, allPublicKeys, l, n, q, p)
+                plainShares = shares
+                encrypt_shares_cg = encryptedShares
+
+
+            end_time = time.time()
+            global ordinal
+            global debugMode
+            if(debugMode):
+               print("Computing shares {", ordinal,"}: ", end_time-start_time)
+
+            return jsonify({'eS' : encrypt_shares_cg})
         else:
-            return "Non valid context"        
+            return "Non valid context", 400        
 
     @app.post("/get_ldei")
     def sendLDEI():
+        global pk_cg
+        global polynomial
+        global encrypt_shares_cg
         if(validateContext() 
-           and ('publicKey' in session) 
-           and ('polynomial' in session)
-           and ('encryptedShares' in session)):
+           and (pk_cg != None) 
+           and (polynomial != None)
+           and (encrypt_shares_cg != None)):
+            
+            start_time = time.time()
+
             bodyContent = request.json
-            allPublicKeys = bodyContent['pks']
-            t = session.get('t')
-            l = session.get('l')
-            q = session.get('q')
-            p = session.get('p')
-            n = session.get('n')
-            polynomial = session.get('polynomial')
-            encryptedShares = session.get('encryptedShares')
-            if('computedLDEI' not in session):
-                auxA, auxE, auxZ = utils.generateLDEI(polynomial, encryptedShares, allPublicKeys, n, q, p, t, l)
+            allPublicKeysBody = json.loads(bodyContent['pks'])
+
+            allPublicKeys = [int(pk) for pk in allPublicKeysBody]
+
+            global t
+            global l
+            global q
+            global p
+            global n
+
+            global computedLDEI_cg
+
+            if(computedLDEI_cg == None):
+                auxA, auxE, auxZ = utils.generateLDEI(polynomial, encrypt_shares_cg, allPublicKeys, n, q, p, t, l)
                 computedLDEI = {'a' : auxA, 'e': auxE, 'z' : auxZ}
-                session['computedLDEI'] = computedLDEI
+                computedLDEI_cg = computedLDEI
 
-                return jsonify({'a' : auxA, 'e': auxE, 'z' : auxZ})
-            else:
-                computedLDEI = session.get('computedLDEI')
-                return jsonify({'a' : computedLDEI['a'], 'e': computedLDEI['e'], 'z' : computedLDEI['z']})
-        else:
-            return "Non valid context"        
+            end_time = time.time()
+            global ordinal
+            global debugMode
+            if(debugMode):
+                print("Computing LDEI {", ordinal,"}: ", end_time-start_time)
 
-    @app.get("/post_shares")
-    def postShares():
-        if(validateContext()
-           and ('shares' in session)):
-            # if(goodParticipant):    
-            shares = session.get('shares')
-            requests.post("http://localhost:6000/post_shares", None, {'shares': shares}) # Post shares to ledger
+            return jsonify({'a' : computedLDEI_cg['a'], 'e': computedLDEI_cg['e'], 'z' : computedLDEI_cg['z']})
         else:
-            return "Non valid context"    
-        
+            return "Non valid context", 400        
+ 
 
     #Elliptic curve
     @app.route('/setup_variables_ec', methods = ["POST"])
     def setupVariablesEC():
+
+        start_time = time.time()
+
         bodyContent = request.json
-        session['n'] = bodyContent['n']
-        session['t'] = bodyContent['t']
+        global n
+        n = bodyContent['n']
+        global t
+        t = bodyContent['t']
 
         curveName : str = bodyContent['ec_name']
-        session['ec_name'] = curveName
-        curve = Curve.get_curve(curveName)
-        session['ec'] = curve
-        session['q'] = curve._domain["order"]
+        global ecName
+        ecName = curveName
+        global ec
+        ec = Curve.get_curve(curveName)
+        global q
+        q = ec._domain["order"]
 
-        session['l'] = bodyContent['l']
+        global l
+        l = bodyContent['l']
+
+        end_time = time.time()
+        global ordinal
+        global debugMode
+        if(debugMode):
+            print("Setup variables {", ordinal,"}: ", end_time-start_time)
+
         return "Variables saved"    
     
     @app.get("/get_public_key_ec")
     def sendPublickKeyEC():
         if(validateContextEC()):
-            q : int = session.get('q')
-            ec : Curve = session.get('ec')
-            if('publicKey' not in session):
+
+            start_time = time.time()
+
+            global q
+            global ec
+            global pk_ec
+            global sk_ec
+            global ec
+            if(pk_ec == None):
                 scalar = randint(1, int(q)-1)
                 sk = ECPrivateKey(scalar, ec)
                 pk = sk.get_public_key()
-                session['scalar'] = scalar
-                session['publicKey'] = pk
-                session['secretKey'] = sk
-                return jsonify({'pk' : pk})
-            else:
-                return jsonify({'pk' : session.get('publicKey')})
-        else:
-            return "Non valid context"   
-        
-    @app.get("/get_encrypted_shares_ec")
-    def sendEncryptedSharesEC():
-        if(validateContextEC() and ('publicKey' in session)):
-            t = session.get('t')
-            l = session.get('l')
-            q = session.get('q')
-            publicKey : ECPublicKey = session.get('publicKey')
-            n = session.get('n')
-            if('polynomial' not in session):
-                session['polynomial'] = utils.generatePolynomial(t, l, q)
-            if('shares' not in session):
-                shares, encryptedShares = utils.computePolynomialEC(session.get('polynomial'), publicKey.W, n, q)
-                session['shares'] = shares
-                session['encryptedShares'] = encryptedShares
+                pk_ec = pk
+                sk_ec = sk
 
-                return jsonify({'eS' : encryptedShares})
-            else:
-                return jsonify({'eS' : session.get('encryptedShares')})
+            end_time = time.time()
+            global ordinal
+            global debugMode
+            if(debugMode):
+               print("Generating keys {", ordinal,"}: ", end_time-start_time)
+
+            encodedPk = ec.encode_point(pk_ec.W)
+            return jsonify({'pk' : encodedPk})
         else:
-            return "Non valid context"         
+            return "Non valid context", 400   
+        
+    @app.post("/get_encrypted_shares_ec")
+    def sendEncryptedSharesEC():
+        global pk_ec
+        if(validateContextEC() and (pk_ec != None)):
+
+            start_time = time.time()
+
+            global t
+            global l
+            global q
+            global n
+
+            bodyContent = request.json
+            allPublicKeysBody = bodyContent['pks']
+
+            global ec
+            allPublicKeys = [ec.decode_point(p) for p in allPublicKeysBody]
+            
+            global polynomial
+            if(polynomial == None):
+                polynomial = utils.generatePolynomial(t, l, q)
+
+            global plainShares
+            global encrypt_shares_ec    
+
+            global ec
+            if(plainShares == None):
+                shares, encryptedShares = utils.computePolynomialEC(polynomial, allPublicKeys, n, q)
+                plainShares = shares
+                encrypt_shares_ec = encryptedShares
+
+
+            encodedShares = [ec.encode_point(p) for p in encrypt_shares_ec]
+
+            end_time = time.time()
+            global ordinal
+            global debugMode
+            if(debugMode):
+               print("Computing shares {", ordinal,"}: ", end_time-start_time)
+
+            return jsonify({'eS' : encodedShares})
+        else:
+            return "Non valid context", 400         
         
 
     @app.post("/get_ldei_ec")
     def sendLDEI_EC():
-        if(validateContextEC() 
-           and ('publicKey' in session) 
-           and ('polynomial' in session)
-           and ('encryptedShares' in session)):
-            bodyContent = request.json
-            allPublicKeys = bodyContent['pks']
-            t = session.get('t')
-            l = session.get('l')
-            q = session.get('q')
-            n = session.get('n')
-            polynomial = session.get('polynomial')
-            encryptedShares = session.get('encryptedShares')
-            if('computedLDEI' not in session):
-                auxA, auxE, auxZ = utils.generateLDEI_EC(polynomial, encryptedShares, allPublicKeys, n, q, t, l)
-                computedLDEI = {'a' : auxA, 'e': auxE, 'z' : auxZ}
-                session['computedLDEI'] = computedLDEI
+        global pk_ec
+        global polynomial
+        global encrypt_shares_ec
 
-                return jsonify({'a' : auxA, 'e': auxE, 'z' : auxZ})
-            else:
-                computedLDEI = session.get('computedLDEI')
-                return jsonify({'a' : computedLDEI['a'], 'e': computedLDEI['e'], 'z' : computedLDEI['z']})
+        if(validateContextEC() 
+           and (pk_ec != None) 
+           and (polynomial != None)
+           and (encrypt_shares_ec != None)):
+            
+            start_time = time.time()
+
+            bodyContent = request.json
+            allPublicKeysBody = bodyContent['pks']
+
+            global ec
+            allPublicKeys = [ec.decode_point(p) for p in allPublicKeysBody]
+
+            global t
+            global l
+            global q
+            global n
+
+            global computedLDEI_ec
+            global ec
+            if(computedLDEI_ec == None):
+                auxA, auxE, auxZ = utils.generateLDEI_EC(polynomial, encrypt_shares_ec, allPublicKeys, n, q, t, l)
+                computedLDEI = {'a' : auxA, 'e': auxE, 'z' : auxZ}
+                computedLDEI_ec = computedLDEI
+
+            end_time = time.time()
+            global ordinal
+            global debugMode
+            if(debugMode):
+                print("Computing LDEI {", ordinal,"}: ", end_time-start_time)
+
+            encodedLDEI_A = [ec.encode_point(a) for a in computedLDEI_ec['a']]
+            return jsonify({'a' : encodedLDEI_A, 'e': computedLDEI_ec['e'], 'z' : computedLDEI_ec['z']})
         else:
-            return "Non valid context"            
+            return "Non valid context", 400            
+
+    @app.get("/post_shares")
+    def postShares():
+        global plainShares
+        if(plainShares != None):
+            # if(goodParticipant):    
+            return jsonify({'shares': plainShares}) # Post shares to ledger
+        else:
+            return "Non valid context", 400    
 
     def validateContext():
-        if(session.get('n') == -1 
-        or session.get('t') == -1
-        or session.get('p') == -1
-        or session.get('q') == -1
-        or session.get('h') == -1
-        or session.get('l') == -1
+        global n
+        global t
+        global p
+        global q
+        global h
+        global l
+
+        if(n == None 
+        or t == None
+        or p == None
+        or q == None
+        or h == None
+        or l == None
         ):
             return False
         else:
             return True
         
     def validateContextEC():
-        if(session.get('n') == -1 
-        or session.get('t') == -1
-        or session.get('p') == -1
-        or session.get('q') == -1
-        or session.get('ec') == None
-        or session.get('l') == -1
+        global n
+        global t
+        global q
+        global ec
+        global l
+        if(n == None
+        or t == None
+        or q == None
+        or ec == None
+        or l == None
         ):
             return False
         else:

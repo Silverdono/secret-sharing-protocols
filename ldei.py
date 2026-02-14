@@ -18,3 +18,5 @@ class LDEI:
     def __eq__(self,ldei):
         if isinstance(ldei, LDEI):
             return (self.a == ldei.a and self.e == ldei.e and self.z == ldei.z)
+        else:
+            return False

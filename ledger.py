@@ -15,7 +15,7 @@ class Ledger:
 
     w = -1 # w for Vandermonde matrix
 
-    EC : Curve = None # Elliptic curve
+    ec : Curve = None # Elliptic curve
 
     publicKeys = []
     ldeis = []
@@ -34,7 +34,8 @@ class Ledger:
         self.w = randint(0, self.order)
 
         if(elliptic):
-            self.EC = Curve.get_curve('secp256k1')
+            self.ec = Curve.get_curve('secp256k1')
+            self.order = self.ec._domain['order']
 
         self.tolerance = int(n/3) # A bit arbitrary this value
         self.l = int(n - 2 * self.tolerance)
@@ -85,7 +86,7 @@ class Ledger:
         return self.generator
     
     def getEC(self) -> Curve | None:
-        return self.EC
+        return self.ec
     
     def getOrder(self) -> int:
         return self.order

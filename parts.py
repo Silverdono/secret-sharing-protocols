@@ -48,7 +48,6 @@ class Part:
             self.ESK = ECPrivateKey(self.privateKey, EC) # Bit redundant as ESK just stores the elliptic curve EC and the scalar self.privateKey
             self.EPK = self.ESK.get_public_key()
             self.polynomial = utils.generatePolynomial(t, l, q)
-            self.shares, self.encryptedShares = utils.computePolynomialEC(self.polynomial,self.EPK.W, n, q)
         else:
             # Initiate participant saving global variables and generating keys USING CICLIC GROUP
             self.ordinal = ordinal
@@ -59,7 +58,13 @@ class Part:
             self.l = l
             self.publicKey, self.privateKey = utils.generateKeys(h, q, p)
             self.polynomial = utils.generatePolynomial(t, l, q)
-            self.shares, self.encryptedShares = utils.computePolynomial(self.polynomial,self.publicKey, l, n, q, p)
+            
+
+    def generateShares(self, pks: list[int]):
+            self.shares, self.encryptedShares = utils.computePolynomial(self.polynomial,pks, self.l, self.n, self.q, self.p)
+
+    def generateShares_EC(self, pks: list[Point]):
+            self.shares, self.encryptedShares = utils.computePolynomialEC(self.polynomial,pks, self.l, self.n, self.q, self.p)        
 
     def generateLDEI(self, pks: list[int]):
         auxA, auxE, auxZ = utils.generateLDEI(self.polynomial, self.encryptedShares, pks, self.n, self.q, self.p, self.t, self.l)

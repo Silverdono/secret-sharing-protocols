@@ -1,11 +1,11 @@
-from flask import Flask, request, session
+from flask import Flask, jsonify
 from random import randint
 from ecpy.curves import Curve
 import requests
-import json
 import utils
-from . import functions
 from ldei import LDEI
+import json
+import time
 
 
 def create_app(n, p, elliptic : bool):
@@ -15,25 +15,26 @@ def create_app(n, p, elliptic : bool):
     import secrets as sessionSecret
     app.secret_key = sessionSecret.token_hex()
 
-    h = utils.findGenerator(p) # Generator
-    q = utils.findMultiplicativeOrder(h,p) # Multiplicative order of h in p
-
     t = int(n/3) # Tolerance -- A bit arbitrary this value
     l = int(n - 2 * t) # l
 
-    w = randint(0, q) # Base used for vandermonde matrix smaller than multiplicative order of q
-
     publicKeys = [-1] * n # Participants' public keys
+    decodedPublicKeys = [-1] * n # Participants' decoded public keys used with Elliptic Curves
     encryptedShares = [-1] * n # Participants' encrypted shares
     ldeis = [-1] * n # Participants' computed LDEIs
 
-    EC : Curve
+    plainShares = [-1] * n # Participants' plain shares
 
-    # Send data to participants
+    url = "http://127.0.0.1:50"
 
-    url = "http://localhost:50"
+    elliptic = False
 
+    start_total_time = time.time()
     if(not elliptic):
+
+        h = utils.findGenerator(p) # Generator
+        q = utils.findMultiplicativeOrder(h,p) # Multiplicative order of h in p
+
         jsonBody = {
             'n' : n,
             'q' : q,
@@ -43,6 +44,8 @@ def create_app(n, p, elliptic : bool):
             'l' : l
         }
 
+        # Setup variables
+        start_time = time.time()
         for i in range (n):
             tmpUrl = url
             if(i/10 < 1):
@@ -51,10 +54,10 @@ def create_app(n, p, elliptic : bool):
                 tmpUrl += str(i) + "/setup_variables"
 
             requests.post(tmpUrl, None, jsonBody)
-
+        print("Time to setup variables: ", time.time() - start_time)
 
         # Request public keys
-
+        start_time = time.time()
         for i in range (n):
             tmpUrl = url
             if(i/10 < 1):
@@ -63,12 +66,11 @@ def create_app(n, p, elliptic : bool):
                 tmpUrl += str(i) + "/get_public_key"
 
             response = requests.get(tmpUrl)
-            print(response)
-            publicKeys[i] = json.load(response)['pk']
-
+            publicKeys[i] = response.json()['pk']
+        print("Time to get public keys: ", time.time() - start_time)
 
         # Request encrypted shares
-
+        start_time = time.time()
         for i in range (n):
             tmpUrl = url
             if(i/10 < 1):
@@ -76,11 +78,14 @@ def create_app(n, p, elliptic : bool):
             else:
                 tmpUrl += str(i) + "/get_encrypted_shares"
 
-            response = requests.get(tmpUrl).json()
-            encryptedShares[i] = json.load(response)['eS']
+            pkBody = {'pks' : json.dumps(publicKeys)}    
+
+            response = requests.post(tmpUrl, None, pkBody)
+            encryptedShares[i] = response.json()['eS']
+        print("Time to get encrypted shares: ", time.time() - start_time)
 
         # Request computed LDEIs
-
+        start_time = time.time()
         for i in range (n):
             tmpUrl = url
             if(i/10 < 1):
@@ -88,26 +93,40 @@ def create_app(n, p, elliptic : bool):
             else:
                 tmpUrl += str(i) + "/get_ldei"
 
-            response = requests.get(tmpUrl).json()
-            responseJson = json.load(response)
+
+            pkBody = {'pks' : json.dumps(publicKeys)}
+            
+            response = requests.post(tmpUrl, None, pkBody)
+            responseJson = response.json()
             tmpA = responseJson['a']
             tmpE = responseJson['e']
             tmpZ = responseJson['z']
             ldeis[i] = LDEI(tmpA, tmpE, tmpZ)
+        print("Time to compute LDEIs: ", time.time() - start_time)
+
+        if(len(ldeis) != n or len(publicKeys) != n or len(encryptedShares) != n):
+            print("Not enough good participants to continue")
+        else:    
+            # Validate LDEIs
+            start_time = time.time()
+            for i in range(len(ldeis)):
+                utils.verifyLDEI(ldeis[i],publicKeys,encryptedShares[i],n,t+l,q,p)
+            print("Time to validate LDEIs: ", time.time() - start_time)
     else:
 
         curveName : str = 'secp256k1'
-        EC = Curve.get_curve(curveName)
+        ec = Curve.get_curve(curveName)
+        q = ec._domain['order']
+
 
         jsonBody = {
             'n' : n,
-            'q' : q,
-            'p' : p,
             'ec_name' : curveName,
             't' : t,
             'l' : l
         }
 
+        start_time = time.time()
         for i in range (n):
             tmpUrl = url
             if(i/10 < 1):
@@ -116,10 +135,10 @@ def create_app(n, p, elliptic : bool):
                 tmpUrl += str(i) + "/setup_variables_ec"
 
             requests.post(tmpUrl, None, jsonBody)
-
+        print("Time to setup variables: ", time.time() - start_time)
 
         # Request public keys
-
+        start_time = time.time()
         for i in range (n):
             tmpUrl = url
             if(i/10 < 1):
@@ -128,12 +147,13 @@ def create_app(n, p, elliptic : bool):
                 tmpUrl += str(i) + "/get_public_key_ec"
 
             response = requests.get(tmpUrl)
-            print(response)
-            publicKeys[i] = json.load(response)['pk']
+            publicKeys[i] = response.json()['pk']
+            decodedPublicKeys[i] = ec.decode_point(publicKeys[i])
 
+        print("Time to get public keys: ", time.time() - start_time)
 
         # Request encrypted shares
-
+        start_time = time.time()
         for i in range (n):
             tmpUrl = url
             if(i/10 < 1):
@@ -141,45 +161,82 @@ def create_app(n, p, elliptic : bool):
             else:
                 tmpUrl += str(i) + "/get_encrypted_shares_ec"
 
-            response = requests.get(tmpUrl).json()
-            encryptedShares[i] = json.load(response)['eS']
+            pkBody = {'pks' : publicKeys}
 
-    @app.post("/post_shares")
-    def postShares():
-        bodyContent = request.json
-        shares = bodyContent['shares']
-        if('plainShares' not in session):
-            session['plainShares'] = [shares]
-        else:
-            auxShares = session.get('plainShares')
-            auxShares.append(shares)
-            session['plainShares'] = auxShares
-        return "Shares shared"    
+            response = requests.post(tmpUrl, None, pkBody)
 
+            auxShare = response.json()['eS']
+            decodedShares = []
+            for point in auxShare:
+                decodedShares.append(ec.decode_point(point))
+            encryptedShares[i] = decodedShares
+        print("Time to get encrypted shares: ", time.time() - start_time)
 
-    @app.get("/compute_reveal")
-    def computeReveal():
-        if('plainShares' in session):
-            plainShares = session.get('plainShares')
-            if(len(plainShares) <= n - t):
-                return "Not enough compromised participants"
+        # Request computed LDEIs
+        start_time = time.time()
+        for i in range (n):
+            tmpUrl = url
+            if(i/10 < 1):
+                tmpUrl += "0" + str(i) + "/get_ldei_ec"
             else:
-                hS = functions.calculateSecrets(n, t, l, h, q, plainShares)
-                session['hS'] = hS
-                resultMatrix = functions.generateResultMatrix(l, t, w, q, h, hS)
-                session['resultMatrix'] = resultMatrix
-                return "Result matrix generated"
-        
-    @app.get("/get_result_from_matrix")
-    def getResultFromMatrix():
-        if('resultMatrix' in session):
-            resultMatrix = session.get('resultMatrix')
-            if(len(resultMatrix) != 0):
-                i = randint(0, l)
-                j = randint(0, l + t)
+                tmpUrl += str(i) + "/get_ldei_ec"
 
-                return resultMatrix[i][j]
+            pkBody = {'pks' : publicKeys}
+
+            response = requests.post(tmpUrl, None, pkBody)
+            responseJson = response.json()
+            tmpA = responseJson['a']
+            finalA = []
+            for point in tmpA:
+                finalA.append(ec.decode_point(point))
+            tmpE = responseJson['e']
+            tmpZ = responseJson['z']
+            ldeis[i] = LDEI(finalA, tmpE, tmpZ)    
+        print("Time to compute LDEIs: ", time.time() - start_time)
+
+        if(len(ldeis) != n or len(publicKeys) != n or len(encryptedShares) != n):
+            print("Not enough good participants to continue")
+        else:    
+            # Validate LDEIs
+            start_time = time.time()
+            for i in range(len(ldeis)):
+                utils.verifyLDEI_EC(ldeis[i],decodedPublicKeys,encryptedShares[i],n,t+l,q)
+            print("Time to validate LDEIs: ", time.time() - start_time)
+
+
+    if(len(encryptedShares) == n):
+        start_time = time.time()
+        for i in range (n):
+            tmpUrl = url
+            if(i/10 < 1):
+                tmpUrl += "0" + str(i) + "/post_shares"
             else:
-                return "Non valid result matrix generated"
-        else:
-            return "Result matrix not generated yet"
+                tmpUrl += str(i) + "/post_shares"
+
+            response = requests.get(tmpUrl)
+            plainShares[i] = response.json()['shares']
+        print("Time to get plain shares: ", time.time() - start_time)
+
+    sharesMatrix = []
+    if(len(plainShares) == n):
+        sharesMatrix = plainShares
+    else:
+        sharesMatrix = utils.calculateSecrets(n,t,l,h,q,plainShares,False) # Elliptic curve as false as this step is not implemented for that case
+    start_time = time.time()
+    w = randint(0, q) # Base used for vandermonde matrix smaller than multiplicative order of q
+    vandermonde = utils.generateVandermondeMatrix(t,l,w,q) # Generate Vandermonde matrix for output
+    global outputMatrix
+    outputMatrix = utils.generateResultMatrix(vandermonde, sharesMatrix)
+    print("Time to compute result matrix: ", time.time() - start_time)
+    print("TOTAL TIME: ", time.time()-start_total_time)
+
+    @app.get("/get_output_matrix")
+    def getOutputMatrix():
+        global outputMatrix
+        if(outputMatrix != None):
+            return jsonify({'output' : outputMatrix})
+
+
+
+    return app
+

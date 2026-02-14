@@ -14,3 +14,9 @@ class DLEQ:
 
     def __str__(self) -> str:
         return "{a = " + str(self.a) + ", e = " + str(self.e) + ", z = " + str(self.z) + "}"
+    
+    def __eq__(self,dleq):
+        if isinstance(dleq, DLEQ):
+            return (self.a == dleq.a and self.e == dleq.e and self.z == dleq.z)
+        else:
+            return False
