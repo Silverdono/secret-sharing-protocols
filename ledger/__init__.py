@@ -27,10 +27,10 @@ def create_app(n, p, elliptic : bool):
 
     url = "http://127.0.0.1:50"
 
-    elliptic = False
+    ellipticWorkflow = elliptic
 
     start_total_time = time.time()
-    if(not elliptic):
+    if(not ellipticWorkflow):
 
         h = utils.findGenerator(p) # Generator
         q = utils.findMultiplicativeOrder(h,p) # Multiplicative order of h in p

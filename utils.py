@@ -46,7 +46,7 @@ def computePolynomial(coefs, pks, l:int, n, q, p):
    
     for i in range(1, n+1):
         shares[i-1] = evalPoly(coefs, i) % q
-        encryptedShares[i-1] = int(pow(pks[i-1], shares[i-1]) % p)
+        encryptedShares[i-1] = int(pow(pks[i-1], shares[i-1], p))
 
     return shares, encryptedShares
 
@@ -201,8 +201,8 @@ def verifyDLEQ(dleq : DLEQ, encryptedShares, dleqShares, q, p):
         return False
     
     for i in range(len(dleq.a)):
-        temp1 = (pow(encryptedShares[i], dleq.z)) % p
-        temp2 = (pow(dleqShares[i], dleq.e)) % p
+        temp1 = (pow(encryptedShares[i], dleq.z), p)
+        temp2 = (pow(dleqShares[i], dleq.e), p) 
         temp3 = (temp1 * temp2) % p
         if dleq.a[i] != temp3:
             return False

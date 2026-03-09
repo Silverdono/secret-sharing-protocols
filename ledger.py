@@ -21,7 +21,7 @@ class Ledger:
     ldeis = []
     shares = []
 
-    decryptedShares = []
+    plainShares = []
 
     recoPartOrdinal = [] # Reconstruction participants' ordinal
 
@@ -62,8 +62,8 @@ class Ledger:
         else :   
             self.shares[ordinal] = shares
 
-    def addDecryptedShares(self, shares: list):
-        self.decryptedShares.append(shares)
+    def addPlainShares(self, shares: list):
+        self.plainShares.append(shares)
 
     def addLDEI(self, ordinal:int, ldei: LDEI):
         if len(self.ldeis) < ordinal:
@@ -123,8 +123,8 @@ class Ledger:
         global hS
         hS = []
 
-        if(len(self.decryptedShares) == self.nParticipants):
-            for i in self.decryptedShares:
+        if(len(self.plainShares) == self.nParticipants):
+            for i in self.plainShares:
                 hS.append(pow(self.generator, i, self.order))
         else:
             hS = self.reconstructionOfSecrets()
@@ -141,7 +141,7 @@ class Ledger:
             S[self.l - j - 1] = 1
             for i in range(self.tolerance):
                 lagr = lagrange[i][j]
-                tmp = pow(self.decryptedShares[i],lagr, self.sizeDomain)
+                tmp = pow(self.plainShares[i],lagr, self.sizeDomain)
                 S[self.l - j - 1] = (S[self.l - j - 1] * tmp) % self.sizeDomain
 
         return S        

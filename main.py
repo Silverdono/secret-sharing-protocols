@@ -8,6 +8,7 @@ from ldei import LDEI
 import json
 from random import randint
 import time
+import argparse
 
 def runParticipant(port):
 
@@ -17,8 +18,27 @@ def runParticipant(port):
     subprocess.run(command) 
 
 if __name__ == "__main__":
+
+    #Parse args
+    parser = argparse.ArgumentParser(description="Process input parameters.")
+    parser.add_argument('--n', type=int, default=11, help='Number of participants.')
+    parser.add_argument('--ec', type=bool, default=False, help='Define if Elliptic Curve workflow is going to be used.')
+    args = parser.parse_args()
+
+    if(args.n < 1):
+        n = 11
+    else:
+        n = args.n
+
+    elliptic = args.ec        
+
+    print(f"Total participants: {n}")
+    print(f"Elliptic curve: {elliptic}")
+
+    sleep(1)
+
     # Main script to load all participants and the ledger for the simulation
-    n, p = 11, 2147483647
+    p = 2147483647
 
     # Load participants
     for i in range(n):
@@ -41,8 +61,6 @@ if __name__ == "__main__":
     plainShares = [-1] * n # Participants' plain shares
 
     url = "http://127.0.0.1:50"
-
-    elliptic = False
 
     start_total_time = time.time()
     if(not elliptic):
