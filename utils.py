@@ -3,7 +3,7 @@ from ldei import LDEI
 from dleq import DLEQ
 from ecpy.curves import Point
 
-# Generate random key winthin order cyclic group
+# Generate random key within order cyclic group
 def generateKeys(h: int, q: int, p : int):
     privateKey = randint(1, int(q)-1) #Range starts at 1 because 0 is not a valid public key
     publicKey = pow(h, privateKey, p)
@@ -23,7 +23,7 @@ def findGenerator(q : int):
         return i # Return i if previous conditions fulfilled
     return -1 # Return -1 if no generator found
 
-# Find multiplicative order of generator h inside Cyclic Group of p size
+# Find multiplicative order of subgroup for Cyclic Group of p size with generator h
 def findMultiplicativeOrder(h: int, p: int):
     i = 1
     while pow(h,i,p) != 1:
@@ -38,8 +38,6 @@ def generatePolynomial(t : int, l : int, q : int):
 # Compute polynomial for all n participants inside cyclic group
 # Return plain computed shares and cyphered ones with public key
 def computePolynomial(coefs, pks, l:int, n, q, p):
-
-    #Implementacion de πPPVSS del documento (fichas.pdf, pag. 15) 
 
     shares = [-1] * int(n)
     encryptedShares = [-1] * int(n)
@@ -74,7 +72,7 @@ def evalPoly(coefs, x):
 # Generate LDEI proof for a computed polynomial using a list of his coefficients
 def generateLDEI(poly, encryptedShares, pk : list[int], n, q, p, t, l):
 
-    auxPolynomial = generatePolynomial(t, l, q) # Generating random polynomial of degree t+l+1
+    auxPolynomial = generatePolynomial(t, l, q) # Generating random polynomial of degree t+l
 
     return generateLDEI_NonRandom(poly, encryptedShares, pk, n, q, p, auxPolynomial)
 
@@ -192,19 +190,46 @@ def verifyLDEI_EC(ldei: LDEI, pk: list[Point], shares: list[Point], n, k, q):
 
     return True
 
+def computeDLEQ(p:int,q: int, sk, shares : list[int]):
+    dleqShares = []
+    invSk = pow(sk, -1, q)
+    for share in shares:
+        dleqShares.append(pow(share, invSk, p))
 
-def verifyDLEQ(dleq : DLEQ, encryptedShares, dleqShares, q, p):
+    w = randint(0, q) #References we found use a random number mod q
+    a = []
+    for share in shares:
+        a.append(pow(share, w, q))
 
-    auxE = (sum((dleq.a[i] * dleqShares[i] * encryptedShares[i]) for i in range(0, len(dleq.a)))) % q
+    # We use "custom" hash function because lists are not hashable    
+    e = (sum((a[i] * dleqShares[i] * shares[i]) for i in range(0, len(a)))) % q
+
+    temp = (invSk * e) % q
+    z = (w - temp) % q 
+    if(z < 0):
+        z += q
+
+    return DLEQ(a, e, z)
+
+
+def verifyDLEQ(dleq : DLEQ, encryptedShares, revealedShares, q, p):
+
+    if(len(revealedShares) != len(dleq.a) or len(encryptedShares) != len(dleq.a)):
+        print("DLEQ no valido")
+        return
+
+    auxE = (sum((dleq.a[i] * revealedShares[i] * encryptedShares[i]) for i in range(0, len(dleq.a)))) % q
 
     if auxE != dleq.e:
+        print("DLEQ no valido")
         return False
     
     for i in range(len(dleq.a)):
-        temp1 = (pow(encryptedShares[i], dleq.z), p)
-        temp2 = (pow(dleqShares[i], dleq.e), p) 
+        temp1 = pow(encryptedShares[i], dleq.z, p)
+        temp2 = pow(revealedShares[i], dleq.e, p)
         temp3 = (temp1 * temp2) % p
         if dleq.a[i] != temp3:
+            print("DLEQ no valido")
             return False
         
     return True

@@ -96,24 +96,3 @@ class Part:
     # Return plain shares    
     def sendShares(self):
         return self.ordinal, self.shares    
-    
-
-    # Compute DLEQ proof for himself
-    def computeDLEQ(self, q: int):
-        self.dleqShares = []
-        invSk = pow(self.privateKey, -1, q)
-        for share in self.encryptedShares:
-            self.dleqShares.append(pow(share, invSk, q))
-
-        w = randint(0, q) #References we found use a random number mod q
-        a = []
-        for share in self.encryptedShares:
-            a.append(pow(share, w, q))
-
-        # We use "custom" hash function because lists are not hashable    
-        e = (sum((a[i] * self.dleqShares[i] * self.encryptedShares[i]) for i in range(0, len(a)))) % q
-
-        temp = (invSk * e) % q
-        z = (w - temp) % q 
-
-        return DLEQ(a, e, z)
